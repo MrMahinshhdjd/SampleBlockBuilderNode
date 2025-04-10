@@ -99,15 +99,16 @@
       font-size: 12px;
       color: white;
     }
+    /* VIP Shop UI: now centered both horizontally and vertically */
     #vipShopMenu {
       background: #222;
       color: #fff;
       padding: 20px;
       border-radius: 8px;
-      position: absolute;
-      top: 20%;
+      position: fixed;
+      top: 50%;
       left: 50%;
-      transform: translateX(-50%);
+      transform: translate(-50%, -50%);
       max-width: 500px;
       text-align: center;
     }
@@ -424,34 +425,35 @@
     </div>
     <div id="vipMoneyTab" class="vip-tab-content">
       <p>Double your money earnings on block placement!</p>
-      <button class="green-button" id="buyMoneyUpgradeBtn" onclick="confirmPurchase('2x Money',499,'assets/gcube1.png',buyMoneyUpgrade)">Buy for 499</button>
+      <!-- Purchase using GCube only -->
+      <button class="green-button" id="buyMoneyUpgradeBtn" onclick="confirmPurchase('2x Money',499,'assets/gcube1.png',buyMoneyUpgrade, 'gcube')">Buy for 499</button>
     </div>
     <div id="vipPremiumTab" class="vip-tab-content" style="display:none;">
       <p>Unlock premium blocks:</p>
       <div class="vip-block-container">
         <div class="vip-block-option">
           <div class="preview-frame" style="background-image:url('assets/block1.png');"></div>
-          <button class="green-button" onclick="confirmPurchase('Hyper Block',999,'assets/block1.png',buyPremiumBlockOnly)">Hyper Block (999 GCube)</button>
+          <button class="green-button" onclick="confirmPurchase('Hyper Block',999,'assets/block1.png',buyPremiumBlockOnly, 'gcube')">Hyper Block (999 GCube)</button>
         </div>
         <div class="vip-block-option">
           <div class="preview-frame" style="background-image:url('assets/block2.png');"></div>
-          <button class="green-button" onclick="confirmPurchase('Super Block',1499,'assets/block2.png',buySuperBlock)">Super Block (1499 GCube)</button>
+          <button class="green-button" onclick="confirmPurchase('Super Block',1499,'assets/block2.png',buySuperBlock, 'gcube')">Super Block (1499 GCube)</button>
         </div>
         <div class="vip-block-option">
           <div class="preview-frame" style="background-image:url('assets/block3.png');"><span class="overlay">hot</span></div>
-          <button class="green-button" onclick="confirmPurchase('404 Not Found',999,'assets/block3.png',buyHotBlock)">404 Not Found (999 GCube)</button>
+          <button class="green-button" onclick="confirmPurchase('404 Not Found',999,'assets/block3.png',buyHotBlock, 'gcube')">404 Not Found (999 GCube)</button>
         </div>
         <div class="vip-block-option">
           <div class="preview-frame" style="background-image:url('assets/hero.png');"></div>
-          <button class="green-button" onclick="confirmPurchase('Hero Block',499,'assets/hero.png',buyHeroBlock)">Hero Block (499 GCube)</button>
+          <button class="green-button" onclick="confirmPurchase('Hero Block',499,'assets/hero.png',buyHeroBlock, 'gcube')">Hero Block (499 GCube)</button>
         </div>
       </div>
     </div>
     <div id="vipMoneyPackTab" class="vip-tab-content" style="display:none;">
       <p>Get bonus money packages:</p>
-      <button class="green-button" id="moneyPack1Btn" onclick="confirmPurchase('5000 Money',100,'assets/money1.png',()=>buyMoneyPack(5000,100,'5000 Money'))">5000 Money for 100 GCube</button>
-      <button class="green-button" id="moneyPack2Btn" onclick="confirmPurchase('50k Money',599,'assets/money1.png',()=>buyMoneyPack(50000,599,'50k Money'))">50k Money for 599 GCube</button>
-      <button class="green-button" id="moneyPack3Btn" onclick="confirmPurchase('100k Money',999,'assets/money1.png',()=>buyMoneyPack(100000,999,'100k Money'))">100k Money for 999 GCube</button>
+      <button class="green-button" id="moneyPack1Btn" onclick="confirmPurchase('5000 Money',100,'assets/money1.png',()=>buyMoneyPack(5000,100,'5000 Money'), 'gcube')">5000 Money for 100 GCube</button>
+      <button class="green-button" id="moneyPack2Btn" onclick="confirmPurchase('50k Money',599,'assets/money1.png',()=>buyMoneyPack(50000,599,'50k Money'), 'gcube')">50k Money for 599 GCube</button>
+      <button class="green-button" id="moneyPack3Btn" onclick="confirmPurchase('100k Money',999,'assets/money1.png',()=>buyMoneyPack(100000,999,'100k Money'), 'gcube')">100k Money for 999 GCube</button>
     </div>
     <button class="green-button" onclick="closeVipShop()">Close</button>
   </div>
@@ -541,15 +543,21 @@
       setTimeout(() => msg.remove(), 2000);
     }
 
+    // Modified confirmPurchase to accept an optional currency parameter ("gcube" or "both")
     let currentPurchaseCallback = null;
-    function confirmPurchase(n, c, i, f){
+    function confirmPurchase(n, c, i, f, currency = "both"){
       document.getElementById('purchaseTitle').innerText = 'Buy Item';
       purchaseItemIcon.style.backgroundImage = `url('${i}')`;
       purchasePromptText.innerText = `Would you like to buy "${n}"?`;
       purchasePriceText.innerText = c;
+      // Check currency availability:
+      if(currency === "gcube"){
+         purchaseConfirmBtn.disabled = (gcube < c);
+      } else if(currency === "both"){
+         purchaseConfirmBtn.disabled = !(money >= c || gcube >= c);
+      }
       currentPurchaseCallback = () => f();
       purchasePopupOverlay.style.display = 'flex';
-      purchaseConfirmBtn.disabled = (gcube < c);
     }
     purchaseCancelBtn.onclick = () => {
       purchasePopupOverlay.style.display = 'none';
@@ -581,6 +589,13 @@
         multiplayerGameStarted = true;
         waitingOverlay.style.display = 'none';
         startGame(selectedBlock);
+      });
+      // Listen for block placements from the opponent
+      socket.on('blockPlaced', (data) => {
+        let cell = gameArea.children[data.index];
+        if(!cell) return;
+        if(cell.innerHTML || cell.style.backgroundColor) return;
+        drawBlock(cell, data.blockType);
       });
       openMultiplayerBlockSelection();
       mainContent.classList.add('hidden');
@@ -642,19 +657,10 @@
     function selectMultiplayerBlock(b){
       selectedBlock = b;
       selectionScreen.classList.add('hidden');
-      // Set initial waiting status and show waiting overlay
-      document.getElementById('waitingStatusText').innerText = "Waiting for player 1/2";
+      // Show waiting overlay
       waitingOverlay.style.display = 'flex';
       // Inform server that this player is ready with the selected block.
       socket.emit('playerReady', { block: b });
-      // For testing (or if no opponent joins), auto-start the game after 5 seconds.
-      setTimeout(() => {
-        if(!multiplayerGameStarted){
-          multiplayerGameStarted = true;
-          waitingOverlay.style.display = 'none';
-          startGame(selectedBlock);
-        }
-      }, 5000);
     }
 
     // Cancel waiting overlay for block placement (exit multiplayer mode)
@@ -783,6 +789,7 @@
         let btn = document.createElement('button');
         btn.className = 'green-button';
         btn.innerText = `Buy ($${item.price})`;
+        // For shop items, we use currency "both"
         btn.onclick = () => confirmPurchase(`${item.color} block`, item.price, 'assets/money1.png', () => buyBlock(item.color, item.price));
         s.appendChild(btn);
         shopMenu.appendChild(s);
@@ -795,7 +802,7 @@
     }
 
     function buyBlock(c, price){
-      if(gcube < price && money < price){
+      if(money < price && gcube < price){
         alert('Not enough currency!');
         return;
       }
