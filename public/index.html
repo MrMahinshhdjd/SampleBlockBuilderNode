@@ -99,7 +99,7 @@
       font-size: 12px;
       color: white;
     }
-    /* VIP Shop UI: now centered both horizontally and vertically */
+    /* VIP Shop UI now centered */
     #vipShopMenu {
       background: #222;
       color: #fff;
@@ -345,9 +345,42 @@
       font-size: 16px;
     }
     #waitingOverlay button:hover { background: #c82333; }
+    /* Leaderboard modal styling */
+    #leaderboardMenu {
+      background: #222;
+      color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+      z-index: 100000;
+      display: none;
+    }
+    #leaderboardMenu h2 {
+      margin-top: 0;
+    }
+    #leaderboardList {
+      margin: 20px 0;
+      text-align: left;
+    }
+    #leaderboardList li {
+      padding: 5px 10px;
+      border-bottom: 1px solid #555;
+    }
   </style>
 </head>
 <body>
+  <!-- Username prompt is triggered on load -->
+  <div id="usernamePrompt" class="green-background" style="position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); z-index:100000;">
+    <h2>Enter Username</h2>
+    <input type="text" id="usernameInput" placeholder="Username">
+    <button class="green-button" onclick="registerUsername()">Submit</button>
+  </div>
   <button id="gmToolButton">GM Tool</button>
   <div id="gmToolMenu">
     <h2>GM Tools</h2>
@@ -389,6 +422,8 @@
     <button id="vipShopButton" class="green-button">VIP Shop</button>
     <!-- Multiplayer Button -->
     <button id="multiplayerButton" class="green-button">Multiplayer</button>
+    <!-- Leaderboard Button -->
+    <button id="leaderboardButton" class="green-button" onclick="openLeaderboardMenu()">Leaderboard</button>
   </div>
   <div id="gameScreen" class="hidden">
     <div id="gameArea"></div>
@@ -473,6 +508,12 @@
     <div id="waitingStatusText">Waiting for player 1/2</div>
     <button onclick="cancelWaiting()">Cancel</button>
   </div>
+  <!-- Leaderboard modal -->
+  <div id="leaderboardMenu">
+    <h2>Leaderboard</h2>
+    <ul id="leaderboardList"></ul>
+    <button class="green-button" onclick="closeLeaderboardMenu()">Close</button>
+  </div>
   <script>
     // Global variables
     let selectedBlock = 'grass',
@@ -498,7 +539,8 @@
         // Multiplayer-related globals
         multiplayerMode = false,
         multiplayerGameStarted = false,
-        socket = null;
+        socket = null,
+        username = "";  // User's username
 
     // DOM references
     const gameArea = document.getElementById('gameArea'),
@@ -520,7 +562,9 @@
           purchasePriceText = document.getElementById('purchasePriceText'),
           purchaseCancelBtn = document.getElementById('purchaseCancelBtn'),
           purchaseConfirmBtn = document.getElementById('purchaseConfirmBtn'),
-          waitingOverlay = document.getElementById('waitingOverlay');
+          waitingOverlay = document.getElementById('waitingOverlay'),
+          leaderboardMenu = document.getElementById('leaderboardMenu'),
+          leaderboardList = document.getElementById('leaderboardList');
 
     const shopItems = [
       {color:'red', price:400},
@@ -529,10 +573,79 @@
       {color:'purple', price:4000}
     ];
 
+    // When the page loads, prompt for username.
+    function registerUsername(){
+      const input = document.getElementById('usernameInput');
+      if(input.value.trim() === ""){
+        alert("Username cannot be empty!");
+        return;
+      }
+      username = input.value.trim();
+      document.getElementById('usernamePrompt').style.display = 'none';
+      // Connect via socket.io and register the user.
+      socket = io();
+      socket.emit('registerUser', { username, gcube });
+      // Listen for leaderboard updates (if any)
+      socket.on('leaderboardData', (data) => {
+        populateLeaderboard(data);
+      });
+      // Listen for waiting status and game start as before...
+      socket.on('waitingStatus', (data) => {
+        const statusText = document.getElementById('waitingStatusText');
+        statusText.innerText = `Waiting for player ${data.count}/2`;
+      });
+      socket.on('startGame', (data) => {
+        multiplayerGameStarted = true;
+        waitingOverlay.style.display = 'none';
+        startGame(selectedBlock);
+      });
+      socket.on('blockPlaced', (data) => {
+        let cell = gameArea.children[data.index];
+        if(!cell) return;
+        if(cell.innerHTML || cell.style.backgroundColor) return;
+        drawBlock(cell, data.blockType);
+      });
+    }
+
+    function updateScore(){
+      // Emit updateScore event so server can update leaderboard data.
+      if(socket && username){
+        socket.emit('updateScore', { gcube, username });
+      }
+    }
+
+    function populateLeaderboard(data){
+      // data is an array of players already sorted descending by gcube
+      leaderboardList.innerHTML = "";
+      data.forEach((player, index) => {
+        const li = document.createElement('li');
+        let rank;
+        if(index === 0) rank = "1st";
+        else if(index === 1) rank = "2nd";
+        else if(index === 2) rank = "3rd";
+        else rank = (index + 1) + "th";
+        li.textContent = `${rank}: ${player.username} - ${player.gcube} GCube`;
+        leaderboardList.appendChild(li);
+      });
+    }
+
+    function openLeaderboardMenu(){
+      // Ask server for leaderboard data
+      if(socket){
+        socket.emit('getLeaderboard');
+      }
+      leaderboardMenu.style.display = 'block';
+    }
+
+    function closeLeaderboardMenu(){
+      leaderboardMenu.style.display = 'none';
+    }
+
     function updateDisplays(){
       moneyValue.innerText = money;
       gcubeValue.innerText = gcube;
       if(gcubeDisplay){ gcubeDisplay.innerText = gcube; }
+      updateScore();
     }
 
     function showObtainedMessage(t){
@@ -543,14 +656,12 @@
       setTimeout(() => msg.remove(), 2000);
     }
 
-    // Modified confirmPurchase to accept an optional currency parameter ("gcube" or "both")
     let currentPurchaseCallback = null;
     function confirmPurchase(n, c, i, f, currency = "both"){
       document.getElementById('purchaseTitle').innerText = 'Buy Item';
       purchaseItemIcon.style.backgroundImage = `url('${i}')`;
       purchasePromptText.innerText = `Would you like to buy "${n}"?`;
       purchasePriceText.innerText = c;
-      // Check currency availability:
       if(currency === "gcube"){
          purchaseConfirmBtn.disabled = (gcube < c);
       } else if(currency === "both"){
@@ -567,6 +678,7 @@
       if(currentPurchaseCallback){ currentPurchaseCallback(); }
       purchasePopupOverlay.style.display = 'none';
       currentPurchaseCallback = null;
+      updateDisplays();
     };
 
     // Single-player start button
@@ -575,28 +687,13 @@
       mainContent.classList.add('hidden');
     };
 
-    // Multiplayer button – initializes socket connection and opens multiplayer block selection
+    // Multiplayer button – opens block selection after ensuring user is registered
     document.getElementById('multiplayerButton').onclick = () => {
+      if(!username){
+        alert("Please enter a username first.");
+        return;
+      }
       multiplayerMode = true;
-      socket = io();
-      // Listen for waiting status updates from the server
-      socket.on('waitingStatus', (data) => {
-        const statusText = document.getElementById('waitingStatusText');
-        statusText.innerText = `Waiting for player ${data.count}/2`;
-      });
-      // When startGame event is received, close waiting overlay and start game
-      socket.on('startGame', (data) => {
-        multiplayerGameStarted = true;
-        waitingOverlay.style.display = 'none';
-        startGame(selectedBlock);
-      });
-      // Listen for block placements from the opponent
-      socket.on('blockPlaced', (data) => {
-        let cell = gameArea.children[data.index];
-        if(!cell) return;
-        if(cell.innerHTML || cell.style.backgroundColor) return;
-        drawBlock(cell, data.blockType);
-      });
       openMultiplayerBlockSelection();
       mainContent.classList.add('hidden');
     };
@@ -657,10 +754,8 @@
     function selectMultiplayerBlock(b){
       selectedBlock = b;
       selectionScreen.classList.add('hidden');
-      // Show waiting overlay
       waitingOverlay.style.display = 'flex';
-      // Inform server that this player is ready with the selected block.
-      socket.emit('playerReady', { block: b });
+      socket.emit('playerReady', { block: b, username });
     }
 
     // Cancel waiting overlay for block placement (exit multiplayer mode)
@@ -704,7 +799,6 @@
 
     function handleBlockPlacement(cell){
       if(cell.innerHTML || cell.style.backgroundColor) return;
-      // In multiplayer mode, if the game hasn't started, do nothing.
       if(multiplayerMode && !multiplayerGameStarted){
         waitingOverlay.style.display = 'flex';
         return;
@@ -789,7 +883,6 @@
         let btn = document.createElement('button');
         btn.className = 'green-button';
         btn.innerText = `Buy ($${item.price})`;
-        // For shop items, we use currency "both"
         btn.onclick = () => confirmPurchase(`${item.color} block`, item.price, 'assets/money1.png', () => buyBlock(item.color, item.price));
         s.appendChild(btn);
         shopMenu.appendChild(s);
