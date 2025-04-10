@@ -318,15 +318,7 @@
       margin-left: 5px;
     }
     .popup-button-buy:hover { background: #218838; }
-    /* Multiplayer status message placed at top of game screen */
-    #multiplayerStatus {
-      color: white;
-      text-align: center;
-      font-size: 18px;
-      margin-bottom: 10px;
-      display: none;
-    }
-    /* Waiting overlay for multiplayer before game start */
+    /* Multiplayer waiting overlay */
     #waitingOverlay {
       position: fixed;
       top: 0;
@@ -394,12 +386,10 @@
     <button id="shopButton" class="green-button">Shop</button>
     <button id="giftCodeButton" class="green-button">Gift Code</button>
     <button id="vipShopButton" class="green-button">VIP Shop</button>
-    <!-- New Multiplayer Button -->
+    <!-- Multiplayer Button -->
     <button id="multiplayerButton" class="green-button">Multiplayer</button>
   </div>
   <div id="gameScreen" class="hidden">
-    <!-- Multiplayer status message -->
-    <div id="multiplayerStatus"></div>
     <div id="gameArea"></div>
     <div id="gameMessage"></div>
     <button id="retryButton" class="green-button hidden" onclick="retryGame()">Retry</button>
@@ -476,9 +466,9 @@
       </div>
     </div>
   </div>
-  <!-- Waiting overlay for multiplayer before game starts -->
+  <!-- Multiplayer waiting overlay -->
   <div id="waitingOverlay">
-    <div>Waiting for player...</div>
+    <div id="waitingStatusText">Waiting for player 1/2</div>
     <button onclick="cancelWaiting()">Cancel</button>
   </div>
   <script>
@@ -507,7 +497,7 @@
         multiplayerMode = false,
         multiplayerGameStarted = false,
         socket = null;
-    
+
     // DOM references
     const gameArea = document.getElementById('gameArea'),
           gameScreen = document.getElementById('gameScreen'),
@@ -528,22 +518,21 @@
           purchasePriceText = document.getElementById('purchasePriceText'),
           purchaseCancelBtn = document.getElementById('purchaseCancelBtn'),
           purchaseConfirmBtn = document.getElementById('purchaseConfirmBtn'),
-          multiplayerStatus = document.getElementById('multiplayerStatus'),
           waitingOverlay = document.getElementById('waitingOverlay');
-    
+
     const shopItems = [
       {color:'red', price:400},
       {color:'blue', price:900},
       {color:'yellow', price:2000},
       {color:'purple', price:4000}
     ];
-    
+
     function updateDisplays(){
       moneyValue.innerText = money;
       gcubeValue.innerText = gcube;
       if(gcubeDisplay){ gcubeDisplay.innerText = gcube; }
     }
-    
+
     function showObtainedMessage(t){
       const msg = document.createElement('div');
       msg.className = 'obtained-message';
@@ -551,7 +540,7 @@
       document.body.appendChild(msg);
       setTimeout(() => msg.remove(), 2000);
     }
-    
+
     let currentPurchaseCallback = null;
     function confirmPurchase(n, c, i, f){
       document.getElementById('purchaseTitle').innerText = 'Buy Item';
@@ -571,35 +560,32 @@
       purchasePopupOverlay.style.display = 'none';
       currentPurchaseCallback = null;
     };
-    
+
     // Single-player start button
     document.getElementById('startButton').onclick = () => {
       openBlockSelection();
       mainContent.classList.add('hidden');
     };
-    
+
     // Multiplayer button – initializes socket connection and opens multiplayer block selection
     document.getElementById('multiplayerButton').onclick = () => {
       multiplayerMode = true;
       socket = io();
-      // Socket events:
-      socket.on('startGame', () => {
+      // Listen for waiting status updates from the server
+      socket.on('waitingStatus', (data) => {
+        const statusText = document.getElementById('waitingStatusText');
+        statusText.innerText = `Waiting for player ${data.count}/2`;
+      });
+      // When startGame event is received, close waiting overlay and start game
+      socket.on('startGame', (data) => {
         multiplayerGameStarted = true;
-        multiplayerStatus.style.display = 'none';
         waitingOverlay.style.display = 'none';
         startGame(selectedBlock);
-      });
-      socket.on('blockPlaced', (data) => {
-        // Update game board for opponent’s block placement
-        let cell = gameArea.children[data.index];
-        if(!cell) return;
-        if(cell.innerHTML || cell.style.backgroundColor) return;
-        drawBlock(cell, data.blockType);
       });
       openMultiplayerBlockSelection();
       mainContent.classList.add('hidden');
     };
-    
+
     function drawBlock(cell, block) {
       if(block === 'hyper'){
         cell.innerHTML = `<img src="assets/block1.png" style="width:100%;height:100%;">`;
@@ -613,7 +599,7 @@
         cell.style.backgroundColor = getBlockColor(block);
       }
     }
-    
+
     // Single-player block selection
     function openBlockSelection(){
       userPlacedCount = botPlacedCount = 0;
@@ -632,8 +618,8 @@
         selectionScreen.appendChild(d);
       });
     }
-    
-    // Multiplayer block selection (sends readiness to server)
+
+    // Multiplayer block selection: sends readiness to server and shows waiting overlay
     function openMultiplayerBlockSelection(){
       userPlacedCount = botPlacedCount = 0;
       multiplayerGameStarted = false;
@@ -652,41 +638,22 @@
         selectionScreen.appendChild(d);
       });
     }
-    
+
     function selectMultiplayerBlock(b){
       selectedBlock = b;
       selectionScreen.classList.add('hidden');
-      multiplayerStatus.innerText = "Waiting for other player...";
-      multiplayerStatus.style.display = "block";
+      // Set initial waiting status
+      document.getElementById('waitingStatusText').innerText = "Waiting for player 1/2";
+      waitingOverlay.style.display = 'flex';
       // Inform server that this player is ready with the selected block.
       socket.emit('playerReady', { block: b });
     }
-    
-    // When the user clicks a cell in multiplayer mode,
-    // if the game hasn't started yet, show a waiting overlay with a cancel button.
-    function handleBlockPlacement(cell){
-      if(cell.innerHTML || cell.style.backgroundColor) return;
-      if(multiplayerMode && !multiplayerGameStarted){
-        waitingOverlay.style.display = 'flex';
-        return;
-      }
-      drawBlock(cell, selectedBlock);
-      userPlacedCount++;
-      let base = Math.floor(Math.random() * 2) + 3;
-      money += base * moneyMultiplier;
-      updateDisplays();
-      filledSlots++;
-      checkGameOver();
-      if(multiplayerMode){
-        socket.emit('blockPlaced', { index: cell.dataset.index, blockType: selectedBlock });
-      }
-    }
-    
+
     // Cancel waiting overlay for block placement
     function cancelWaiting(){
       waitingOverlay.style.display = 'none';
     }
-    
+
     // In single-player mode, a bot places a block.
     function botPlaceBlock(){
       let empties = Array.from(gameArea.children).filter(cell => !cell.innerHTML && !cell.style.backgroundColor);
@@ -698,7 +665,7 @@
       filledSlots++;
       checkGameOver();
     }
-    
+
     function startGame(b){
       selectedBlock = b;
       selectionScreen.classList.add('hidden');
@@ -717,7 +684,7 @@
         botInterval = setInterval(botPlaceBlock, currentBotSpeed);
       }
     }
-    
+
     function checkGameOver(){
       if(filledSlots >= totalSlots){
         if(!multiplayerMode)
@@ -725,7 +692,7 @@
         showResultScreen();
       }
     }
-    
+
     function showResultScreen(){
       resultScreen.classList.remove('hidden');
       gameScreen.classList.add('hidden');
@@ -739,7 +706,7 @@
       }
       updateDisplays();
     }
-    
+
     function retryGame(){
       resultScreen.classList.add('hidden');
       if(multiplayerMode){
@@ -748,13 +715,13 @@
         openBlockSelection();
       }
     }
-    
+
     function exitGame(){
       resultScreen.classList.add('hidden');
       mainContent.classList.remove('hidden');
       gameScreen.classList.add('hidden');
     }
-    
+
     function restartGameWithNoLoss(){
       if(gcube < 10){
         alert("Not enough GCube to restart!");
@@ -770,12 +737,12 @@
         openBlockSelection();
       }
     }
-    
+
     document.getElementById('shopButton').onclick = () => {
       openShopMenu();
       mainContent.classList.add('hidden');
     };
-    
+
     function openShopMenu(){
       shopMenu.classList.remove('hidden');
       shopMenu.innerHTML = '<h2>Shop</h2>';
@@ -796,7 +763,7 @@
       closeBtn.onclick = closeShop;
       shopMenu.appendChild(closeBtn);
     }
-    
+
     function buyBlock(c, price){
       if(gcube < price && money < price){
         alert('Not enough currency!');
@@ -813,21 +780,21 @@
       closeShop();
       mainContent.classList.remove('hidden');
     }
-    
+
     function closeShop(){
       shopMenu.classList.add('hidden');
       mainContent.classList.remove('hidden');
     }
-    
+
     document.getElementById('giftCodeButton').onclick = () => {
       openGiftCodeMenu();
       mainContent.classList.add('hidden');
     };
-    
+
     function openGiftCodeMenu(){
       giftCodeMenu.classList.remove('hidden');
     }
-    
+
     function redeemGiftCode(){
       let code = document.getElementById('giftCodeInput').value;
       if(code === 'heronick'){
@@ -838,26 +805,26 @@
         alert('Invalid code!');
       }
     }
-    
+
     function closeGiftCodeMenu(){
       giftCodeMenu.classList.add('hidden');
       mainContent.classList.remove('hidden');
     }
-    
+
     document.getElementById('vipShopButton').onclick = () => {
       openVipShop();
       mainContent.classList.add('hidden');
     };
-    
+
     function openVipShop(){
       vipShopMenu.classList.remove('hidden');
     }
-    
+
     function closeVipShop(){
       vipShopMenu.classList.add('hidden');
       mainContent.classList.remove('hidden');
     }
-    
+
     function showVipTab(tab){
       document.getElementById('vipMoneyTabButton').classList.remove('active');
       document.getElementById('vipPremiumTabButton').classList.remove('active');
@@ -876,7 +843,7 @@
         document.getElementById('vipMoneyPackTab').style.display = 'block';
       }
     }
-    
+
     function openInputAndAdd(type){
       let n = prompt(`Enter amount of ${type} to add:`);
       n = parseInt(n);
@@ -889,7 +856,7 @@
         updateDisplays();
       }
     }
-    
+
     function gmAddMoney(){
       let n = parseInt(document.getElementById('gmAddMoneyInput').value);
       if(!isNaN(n)){
@@ -897,7 +864,7 @@
         updateDisplays();
       }
     }
-    
+
     function gmAddGCube(){
       let n = parseInt(document.getElementById('gmAddGCubeInput').value);
       if(!isNaN(n)){
@@ -905,7 +872,7 @@
         updateDisplays();
       }
     }
-    
+
     function gmUpdateBotSpeed(){
       let n = parseInt(document.getElementById('gmBotSpeedInput').value);
       if(!isNaN(n) && n > 0){
@@ -916,12 +883,12 @@
         }
       }
     }
-    
+
     function endGame(){
       clearInterval(botInterval);
       showResultScreen();
     }
-    
+
     function buyMoneyUpgrade(){
       if(moneyUpgradePurchased){
         alert("Already purchased!");
@@ -938,7 +905,7 @@
       document.getElementById('buyMoneyUpgradeBtn').innerText = "Purchased";
       showObtainedMessage("2x Money");
     }
-    
+
     function buyPremiumBlockOnly(){
       if(premiumBlockUnlocked){
         alert("Already purchased!");
@@ -954,7 +921,7 @@
       if(!purchasedBlocks.includes('hyper')) purchasedBlocks.push('hyper');
       showObtainedMessage("Hyper Block");
     }
-    
+
     function buySuperBlock(){
       if(superBlockUnlocked){
         alert("Already purchased!");
@@ -970,7 +937,7 @@
       if(!purchasedBlocks.includes('super')) purchasedBlocks.push('super');
       showObtainedMessage("Super Block");
     }
-    
+
     function buyHotBlock(){
       if(hotBlockPurchased){
         alert("Already purchased!");
@@ -986,7 +953,7 @@
       if(!purchasedBlocks.includes('hot')) purchasedBlocks.push('hot');
       showObtainedMessage("404 Not Found");
     }
-    
+
     function buyHeroBlock(){
       if(heroBlockPurchased){
         alert("Already purchased!");
@@ -1002,7 +969,7 @@
       if(!purchasedBlocks.includes('hero')) purchasedBlocks.push('hero');
       showObtainedMessage("Hero Block");
     }
-    
+
     function buyMoneyPack(a, c, l){
       let btnId;
       if(a === 5000){
@@ -1037,7 +1004,7 @@
       document.getElementById(btnId).innerText = "Purchased";
       showObtainedMessage(l);
     }
-    
+
     function getBlockColor(b){
       switch(b){
         case 'grass': return '#8DB600';
@@ -1048,7 +1015,7 @@
         default: return b;
       }
     }
-    
+
     function populateGMBlockTab(){
       const L = document.getElementById('gmBlockList');
       L.innerHTML = "";
@@ -1063,7 +1030,7 @@
         L.appendChild(d);
       });
     }
-    
+
     document.getElementById('gmToolButton').onclick = () => {
       const m = document.getElementById('gmToolMenu');
       if(m.style.display === "none" || m.style.display === ""){
@@ -1072,17 +1039,17 @@
         closeGMToolMenu();
       }
     };
-    
+
     function openGMToolMenu(){
       document.getElementById('gmToolMenu').style.display = "block";
       showGMToolTab('currency');
       populateGMBlockTab();
     }
-    
+
     function closeGMToolMenu(){
       document.getElementById('gmToolMenu').style.display = "none";
     }
-    
+
     function showGMToolTab(t){
       document.getElementById('gmCurrencyTab').style.display = 'none';
       document.getElementById('gmBlockTab').style.display = 'none';
@@ -1095,11 +1062,11 @@
         document.getElementById('gmGameTab').style.display = 'block';
       }
     }
-    
+
     function closeSettingsMenu(){
       document.getElementById('settingsMenu').style.display = 'none';
     }
-    
+
     updateDisplays();
   </script>
 </body>
