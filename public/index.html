@@ -1,1 +1,1106 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+  <meta charset="UTF-8">
+  <title>Block Builder Game</title>
+  <!-- Include Socket.IO client library -->
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      min-height: 100vh;
+      height: 100dvh;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: #333;
+      overflow: auto;
+    }
+    .hidden { display: none; }
+    .green-button {
+      background: #28a745;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .green-button:hover { background: #218838; }
+    .green-background {
+      background: #28a745;
+      color: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    #mainContent { text-align: center; }
+    #money, #gcubeHome {
+      font-size: 18px;
+      color: white;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #money img, #gcubeHome img {
+      width: 24px;
+      height: 24px;
+      margin-right: 6px;
+    }
+    #gameArea {
+      display: grid;
+      grid-template-columns: repeat(10, 40px);
+      grid-template-rows: repeat(10, 40px);
+      gap: 2px;
+      margin: 20px auto;
+    }
+    #gameArea .cell {
+      width: 40px;
+      height: 40px;
+      background: #2E8B57;
+      border: 1px solid #fff;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+    #blockSelection { text-align: center; }
+    .block-option {
+      width: 40px;
+      height: 40px;
+      display: inline-block;
+      margin: 5px;
+      cursor: pointer;
+      border: 2px solid white;
+      background-size: cover;
+      background-position: center;
+    }
+    #shopItems {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    #shopItems .shop-item {
+      width: 40px;
+      height: 40px;
+      margin: 5px;
+      cursor: pointer;
+      border: 2px solid white;
+      position: relative;
+    }
+    .shop-item .buy-button {
+      position: absolute;
+      bottom: -20px;
+      left: 0;
+      right: 0;
+      font-size: 12px;
+      color: white;
+    }
+    #vipShopMenu {
+      background: #222;
+      color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      position: absolute;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 500px;
+      text-align: center;
+    }
+    .vip-tabs {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+    .vip-tab {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    .vip-tab.active { background: #218838; }
+    .vip-tab-content { margin-bottom: 15px; }
+    .preview-frame {
+      width: 60px;
+      height: 60px;
+      border: 2px solid #fff;
+      margin: 10px auto;
+      background-size: cover;
+      background-position: center;
+      position: relative;
+    }
+    .preview-frame .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      color: red;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .vip-block-container {
+      max-width: 100%;
+      overflow-x: auto;
+      white-space: nowrap;
+      margin-top: 10px;
+    }
+    .vip-block-option {
+      display: inline-block;
+      margin: 0 10px;
+      vertical-align: top;
+    }
+    .obtained-message {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      color: gold;
+      font-size: 24px;
+      opacity: 1;
+      animation: slideUp 2s forwards;
+      z-index: 9999;
+      pointer-events: none;
+    }
+    @keyframes slideUp {
+      0% { opacity: 1; transform: translate(-50%, -50%); }
+      100% { opacity: 0; transform: translate(-50%, -150%); }
+    }
+    #gmToolButton {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 10000;
+      background: #ffc107;
+      color: #000;
+      border: none;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #gmToolMenu {
+      position: fixed;
+      top: 50px;
+      left: 10px;
+      z-index: 10000;
+      background: linear-gradient(135deg, #4f4f4f, #3c3c3c);
+      color: white;
+      border: 1px solid #5a5a5a;
+      border-radius: 8px;
+      padding: 15px;
+      width: 300px;
+      display: none;
+    }
+    #gmToolMenu h2 { margin-top: 0; font-size: 20px; text-align: center; }
+    .gm-tabs {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .gm-tab {
+      background: #28a745;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 0 5px;
+    }
+    .gm-tab.active { background: #218838; }
+    .gm-tab-content { margin-top: 10px; }
+    .gm-block-option {
+      width: 40px;
+      height: 40px;
+      display: inline-block;
+      margin: 4px;
+      border: 1px solid #fff;
+      background-size: cover;
+      background-position: center;
+      cursor: pointer;
+    }
+    #gmGameTab { margin-top: 10px; }
+    #gmGameTab label { font-size: 14px; color: #fff; }
+    #gmGameTab input { width: 60px; margin-left: 5px; }
+    #settingsButton {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      z-index: 10000;
+      background: #17a2b8;
+      color: #fff;
+      border: none;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #settingsMenu {
+      position: fixed;
+      bottom: 50px;
+      right: 10px;
+      z-index: 10000;
+      background: #444;
+      color: white;
+      border: 1px solid #666;
+      border-radius: 8px;
+      padding: 15px;
+      width: 250px;
+      display: none;
+    }
+    #settingsMenu h3 { margin-top: 0; font-size: 18px; text-align: center; }
+    #settingsMenu label { display: block; margin: 10px 0; font-size: 14px; }
+    @media (max-width: 500px) {
+      #vipShopMenu, #gmToolMenu, #settingsMenu { width: 90%; left: 5%; right: 5%; }
+    }
+    #purchasePopupOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99999;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    #purchasePopup {
+      background: #2f2f2f;
+      color: white;
+      width: 300px;
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      position: relative;
+    }
+    #purchasePopup h3 { margin-bottom: 20px; font-size: 20px; }
+    #purchaseItemIcon {
+      width: 80px;
+      height: 80px;
+      border: 4px solid #fff;
+      border-radius: 10px;
+      background-position: center;
+      background-size: cover;
+      margin: 0 auto 10px;
+    }
+    #purchasePopup p { margin-bottom: 20px; font-size: 16px; }
+    .popup-buttons {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .popup-button-cancel, .popup-button-buy {
+      background: #444;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      border-radius: 5px;
+    }
+    .popup-button-cancel:hover { background: #555; }
+    .popup-button-buy {
+      display: flex;
+      align-items: center;
+      background: #28a745;
+    }
+    .popup-button-buy img {
+      width: 16px;
+      height: 16px;
+      margin-left: 5px;
+    }
+    .popup-button-buy:hover { background: #218838; }
+    /* Multiplayer status message placed at top of game screen */
+    #multiplayerStatus {
+      color: white;
+      text-align: center;
+      font-size: 18px;
+      margin-bottom: 10px;
+      display: none;
+    }
+    /* Waiting overlay for multiplayer before game start */
+    #waitingOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100000;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      color: white;
+      font-size: 18px;
+    }
+    #waitingOverlay button {
+      margin-top: 15px;
+      padding: 10px 20px;
+      background: #dc3545;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #waitingOverlay button:hover { background: #c82333; }
+  </style>
+</head>
+<body>
+  <button id="gmToolButton">GM Tool</button>
+  <div id="gmToolMenu">
+    <h2>GM Tools</h2>
+    <div class="gm-tabs">
+      <button class="gm-tab active" id="gmCurrencyTabButton" onclick="showGMToolTab('currency')">Currency</button>
+      <button class="gm-tab" id="gmBlockTabButton" onclick="showGMToolTab('block')">Block</button>
+      <button class="gm-tab" id="gmGameTabButton" onclick="showGMToolTab('game')">Game</button>
+    </div>
+    <div id="gmCurrencyTab" class="gm-tab-content">
+      <button class="green-button" onclick="openInputAndAdd('money')">Add Money</button>
+      <button class="green-button" onclick="openInputAndAdd('gcube')">Add GCube</button>
+    </div>
+    <div id="gmBlockTab" class="gm-tab-content" style="display:none;">
+      <div id="gmBlockList" style="text-align:center;"></div>
+    </div>
+    <div id="gmGameTab" class="gm-tab-content" style="display:none;">
+      <h3>Game Controls</h3>
+      <div><button class="green-button" onclick="endGame()">End Game</button></div>
+      <div><label>Add Money: <input type="number" id="gmAddMoneyInput"></label><button class="green-button" onclick="gmAddMoney()">Add Money</button></div>
+      <div><label>Add GCube: <input type="number" id="gmAddGCubeInput"></label><button class="green-button" onclick="gmAddGCube()">Add GCube</button></div>
+      <div><label>Bot Speed (ms): <input type="number" id="gmBotSpeedInput" value="230"></label><button class="green-button" onclick="gmUpdateBotSpeed()">Update Bot Speed</button></div>
+    </div>
+    <button class="green-button" onclick="closeGMToolMenu()">Close</button>
+  </div>
+  <button id="settingsButton">Settings</button>
+  <div id="settingsMenu">
+    <h3>Settings</h3>
+    <label><input type="checkbox" id="toggleAnimations" checked> Enable Animations & Effects</label>
+    <label><input type="checkbox" id="toggleGMTool" checked> Enable GM Tool</label>
+    <button class="green-button" onclick="closeSettingsMenu()">Close</button>
+  </div>
+  <div id="mainContent">
+    <h1>Block Builder Game</h1>
+    <div id="money"><img src="assets/money1.png" alt="Money Icon"><span id="moneyValue">1000</span></div>
+    <div id="gcubeHome"><img src="assets/gcube1.png" alt="GCube Icon"><span id="gcubeValue">0</span></div>
+    <button id="startButton" class="green-button">Start Game</button>
+    <button id="shopButton" class="green-button">Shop</button>
+    <button id="giftCodeButton" class="green-button">Gift Code</button>
+    <button id="vipShopButton" class="green-button">VIP Shop</button>
+    <!-- New Multiplayer Button -->
+    <button id="multiplayerButton" class="green-button">Multiplayer</button>
+  </div>
+  <div id="gameScreen" class="hidden">
+    <!-- Multiplayer status message -->
+    <div id="multiplayerStatus"></div>
+    <div id="gameArea"></div>
+    <div id="gameMessage"></div>
+    <button id="retryButton" class="green-button hidden" onclick="retryGame()">Retry</button>
+    <button id="exitButton" class="green-button hidden" onclick="exitGame()">Exit</button>
+  </div>
+  <div id="blockSelection" class="hidden"><h2>Select a Block</h2></div>
+  <div id="resultScreen" class="hidden green-background">
+    <h2>Game Over</h2>
+    <div id="resultMessage"></div>
+    <button class="green-button" onclick="retryGame()">Retry</button>
+    <button class="green-button" onclick="exitGame()">Exit</button>
+    <button class="green-button" onclick="restartGameWithNoLoss()">Restart (10 GCube)</button>
+  </div>
+  <div id="shopMenu" class="hidden green-background">
+    <h2>Shop</h2>
+    <div id="shopItems"></div>
+    <button class="green-button" onclick="closeShop()">Close</button>
+  </div>
+  <div id="giftCodeMenu" class="hidden green-background">
+    <h2>Enter Gift Code</h2>
+    <input type="text" id="giftCodeInput" placeholder="Enter code here">
+    <button class="green-button" onclick="redeemGiftCode()">Redeem</button>
+    <button class="green-button" onclick="closeGiftCodeMenu()">Close</button>
+  </div>
+  <div id="vipShopMenu" class="hidden">
+    <h2>VIP Shop</h2>
+    <div>Current GCube: <span id="gcubeDisplay">0</span></div>
+    <div class="vip-tabs">
+      <button class="vip-tab active" id="vipMoneyTabButton" onclick="showVipTab('money')">2x Money</button>
+      <button class="vip-tab" id="vipPremiumTabButton" onclick="showVipTab('premium')">Premium Block</button>
+      <button class="vip-tab" id="vipMoneyPackTabButton" onclick="showVipTab('pack')">Money Pack</button>
+    </div>
+    <div id="vipMoneyTab" class="vip-tab-content">
+      <p>Double your money earnings on block placement!</p>
+      <button class="green-button" id="buyMoneyUpgradeBtn" onclick="confirmPurchase('2x Money',499,'assets/gcube1.png',buyMoneyUpgrade)">Buy for 499</button>
+    </div>
+    <div id="vipPremiumTab" class="vip-tab-content" style="display:none;">
+      <p>Unlock premium blocks:</p>
+      <div class="vip-block-container">
+        <div class="vip-block-option">
+          <div class="preview-frame" style="background-image:url('assets/block1.png');"></div>
+          <button class="green-button" onclick="confirmPurchase('Hyper Block',999,'assets/block1.png',buyPremiumBlockOnly)">Hyper Block (999 GCube)</button>
+        </div>
+        <div class="vip-block-option">
+          <div class="preview-frame" style="background-image:url('assets/block2.png');"></div>
+          <button class="green-button" onclick="confirmPurchase('Super Block',1499,'assets/block2.png',buySuperBlock)">Super Block (1499 GCube)</button>
+        </div>
+        <div class="vip-block-option">
+          <div class="preview-frame" style="background-image:url('assets/block3.png');"><span class="overlay">hot</span></div>
+          <button class="green-button" onclick="confirmPurchase('404 Not Found',999,'assets/block3.png',buyHotBlock)">404 Not Found (999 GCube)</button>
+        </div>
+        <div class="vip-block-option">
+          <div class="preview-frame" style="background-image:url('assets/hero.png');"></div>
+          <button class="green-button" onclick="confirmPurchase('Hero Block',499,'assets/hero.png',buyHeroBlock)">Hero Block (499 GCube)</button>
+        </div>
+      </div>
+    </div>
+    <div id="vipMoneyPackTab" class="vip-tab-content" style="display:none;">
+      <p>Get bonus money packages:</p>
+      <button class="green-button" id="moneyPack1Btn" onclick="confirmPurchase('5000 Money',100,'assets/money1.png',()=>buyMoneyPack(5000,100,'5000 Money'))">5000 Money for 100 GCube</button>
+      <button class="green-button" id="moneyPack2Btn" onclick="confirmPurchase('50k Money',599,'assets/money1.png',()=>buyMoneyPack(50000,599,'50k Money'))">50k Money for 599 GCube</button>
+      <button class="green-button" id="moneyPack3Btn" onclick="confirmPurchase('100k Money',999,'assets/money1.png',()=>buyMoneyPack(100000,999,'100k Money'))">100k Money for 999 GCube</button>
+    </div>
+    <button class="green-button" onclick="closeVipShop()">Close</button>
+  </div>
+  <div id="purchasePopupOverlay">
+    <div id="purchasePopup">
+      <h3 id="purchaseTitle">Buy Item</h3>
+      <div id="purchaseItemIcon"></div>
+      <p id="purchasePromptText">Would you like to buy this item?</p>
+      <div class="popup-buttons">
+        <button class="popup-button-cancel" id="purchaseCancelBtn">Cancel</button>
+        <button class="popup-button-buy" id="purchaseConfirmBtn"><span id="purchasePriceText"></span><img src="assets/gcube1.png" alt="GCube Icon"></button>
+      </div>
+    </div>
+  </div>
+  <!-- Waiting overlay for multiplayer before game starts -->
+  <div id="waitingOverlay">
+    <div>Waiting for player...</div>
+    <button onclick="cancelWaiting()">Cancel</button>
+  </div>
+  <script>
+    // Global variables
+    let selectedBlock = 'grass',
+        money = 1000,
+        gcube = 0,
+        purchasedBlocks = ['grass','dirt','stone'],
+        botInterval,
+        filledSlots = 0,
+        totalSlots = 100,
+        moneyMultiplier = 1,
+        premiumBlockUnlocked = false,
+        moneyUpgradePurchased = false,
+        superBlockUnlocked = false,
+        hotBlockPurchased = false,
+        heroBlockPurchased = false,
+        moneyPack1Purchased = false,
+        moneyPack2Purchased = false,
+        moneyPack3Purchased = false,
+        userPlacedCount = 0,
+        botPlacedCount = 0,
+        currentBotSpeed = 230,
+        moneyBeforePenalty = money,
+        // Multiplayer-related globals
+        multiplayerMode = false,
+        multiplayerGameStarted = false,
+        socket = null;
+    
+    // DOM references
+    const gameArea = document.getElementById('gameArea'),
+          gameScreen = document.getElementById('gameScreen'),
+          mainContent = document.getElementById('mainContent'),
+          moneyValue = document.getElementById('moneyValue'),
+          gcubeValue = document.getElementById('gcubeValue'),
+          resultScreen = document.getElementById('resultScreen'),
+          resultMessage = document.getElementById('resultMessage'),
+          gameMessage = document.getElementById('gameMessage'),
+          shopMenu = document.getElementById('shopMenu'),
+          giftCodeMenu = document.getElementById('giftCodeMenu'),
+          selectionScreen = document.getElementById('blockSelection'),
+          vipShopMenu = document.getElementById('vipShopMenu'),
+          gcubeDisplay = document.getElementById('gcubeDisplay'),
+          purchasePopupOverlay = document.getElementById('purchasePopupOverlay'),
+          purchaseItemIcon = document.getElementById('purchaseItemIcon'),
+          purchasePromptText = document.getElementById('purchasePromptText'),
+          purchasePriceText = document.getElementById('purchasePriceText'),
+          purchaseCancelBtn = document.getElementById('purchaseCancelBtn'),
+          purchaseConfirmBtn = document.getElementById('purchaseConfirmBtn'),
+          multiplayerStatus = document.getElementById('multiplayerStatus'),
+          waitingOverlay = document.getElementById('waitingOverlay');
+    
+    const shopItems = [
+      {color:'red', price:400},
+      {color:'blue', price:900},
+      {color:'yellow', price:2000},
+      {color:'purple', price:4000}
+    ];
+    
+    function updateDisplays(){
+      moneyValue.innerText = money;
+      gcubeValue.innerText = gcube;
+      if(gcubeDisplay){ gcubeDisplay.innerText = gcube; }
+    }
+    
+    function showObtainedMessage(t){
+      const msg = document.createElement('div');
+      msg.className = 'obtained-message';
+      msg.innerText = `Obtained ${t}`;
+      document.body.appendChild(msg);
+      setTimeout(() => msg.remove(), 2000);
+    }
+    
+    let currentPurchaseCallback = null;
+    function confirmPurchase(n, c, i, f){
+      document.getElementById('purchaseTitle').innerText = 'Buy Item';
+      purchaseItemIcon.style.backgroundImage = `url('${i}')`;
+      purchasePromptText.innerText = `Would you like to buy "${n}"?`;
+      purchasePriceText.innerText = c;
+      currentPurchaseCallback = () => f();
+      purchasePopupOverlay.style.display = 'flex';
+      purchaseConfirmBtn.disabled = (gcube < c);
+    }
+    purchaseCancelBtn.onclick = () => {
+      purchasePopupOverlay.style.display = 'none';
+      currentPurchaseCallback = null;
+    };
+    purchaseConfirmBtn.onclick = () => {
+      if(currentPurchaseCallback){ currentPurchaseCallback(); }
+      purchasePopupOverlay.style.display = 'none';
+      currentPurchaseCallback = null;
+    };
+    
+    // Single-player start button
+    document.getElementById('startButton').onclick = () => {
+      openBlockSelection();
+      mainContent.classList.add('hidden');
+    };
+    
+    // Multiplayer button – initializes socket connection and opens multiplayer block selection
+    document.getElementById('multiplayerButton').onclick = () => {
+      multiplayerMode = true;
+      socket = io();
+      // Socket events:
+      socket.on('startGame', () => {
+        multiplayerGameStarted = true;
+        multiplayerStatus.style.display = 'none';
+        waitingOverlay.style.display = 'none';
+        startGame(selectedBlock);
+      });
+      socket.on('blockPlaced', (data) => {
+        // Update game board for opponent’s block placement
+        let cell = gameArea.children[data.index];
+        if(!cell) return;
+        if(cell.innerHTML || cell.style.backgroundColor) return;
+        drawBlock(cell, data.blockType);
+      });
+      openMultiplayerBlockSelection();
+      mainContent.classList.add('hidden');
+    };
+    
+    function drawBlock(cell, block) {
+      if(block === 'hyper'){
+        cell.innerHTML = `<img src="assets/block1.png" style="width:100%;height:100%;">`;
+      } else if(block === 'super'){
+        cell.innerHTML = `<img src="assets/block2.png" style="width:100%;height:100%;">`;
+      } else if(block === 'hot'){
+        cell.innerHTML = `<img src="assets/block3.png" style="width:100%;height:100%;">`;
+      } else if(block === 'hero'){
+        cell.innerHTML = `<img src="assets/hero.png" style="width:100%;height:100%;">`;
+      } else {
+        cell.style.backgroundColor = getBlockColor(block);
+      }
+    }
+    
+    // Single-player block selection
+    function openBlockSelection(){
+      userPlacedCount = botPlacedCount = 0;
+      selectionScreen.classList.remove('hidden');
+      selectionScreen.innerHTML = '<h2>Select a Block</h2>';
+      purchasedBlocks.forEach(b => {
+        const d = document.createElement('div');
+        d.className = 'block-option';
+        d.style.backgroundImage = (b==='hyper') ? "url('assets/block1.png')" :
+                                    (b==='super') ? "url('assets/block2.png')" :
+                                    (b==='hot') ? "url('assets/block3.png')" :
+                                    (b==='hero') ? "url('assets/hero.png')" : 'none';
+        if(d.style.backgroundImage === "none")
+          d.style.backgroundColor = getBlockColor(b);
+        d.onclick = () => startGame(b);
+        selectionScreen.appendChild(d);
+      });
+    }
+    
+    // Multiplayer block selection (sends readiness to server)
+    function openMultiplayerBlockSelection(){
+      userPlacedCount = botPlacedCount = 0;
+      multiplayerGameStarted = false;
+      selectionScreen.classList.remove('hidden');
+      selectionScreen.innerHTML = '<h2>Select a Block (Multiplayer)</h2>';
+      purchasedBlocks.forEach(b => {
+        const d = document.createElement('div');
+        d.className = 'block-option';
+        d.style.backgroundImage = (b==='hyper') ? "url('assets/block1.png')" :
+                                    (b==='super') ? "url('assets/block2.png')" :
+                                    (b==='hot') ? "url('assets/block3.png')" :
+                                    (b==='hero') ? "url('assets/hero.png')" : 'none';
+        if(d.style.backgroundImage === "none")
+          d.style.backgroundColor = getBlockColor(b);
+        d.onclick = () => selectMultiplayerBlock(b);
+        selectionScreen.appendChild(d);
+      });
+    }
+    
+    function selectMultiplayerBlock(b){
+      selectedBlock = b;
+      selectionScreen.classList.add('hidden');
+      multiplayerStatus.innerText = "Waiting for other player...";
+      multiplayerStatus.style.display = "block";
+      // Inform server that this player is ready with the selected block.
+      socket.emit('playerReady', { block: b });
+    }
+    
+    // When the user clicks a cell in multiplayer mode,
+    // if the game hasn't started yet, show a waiting overlay with a cancel button.
+    function handleBlockPlacement(cell){
+      if(cell.innerHTML || cell.style.backgroundColor) return;
+      if(multiplayerMode && !multiplayerGameStarted){
+        waitingOverlay.style.display = 'flex';
+        return;
+      }
+      drawBlock(cell, selectedBlock);
+      userPlacedCount++;
+      let base = Math.floor(Math.random() * 2) + 3;
+      money += base * moneyMultiplier;
+      updateDisplays();
+      filledSlots++;
+      checkGameOver();
+      if(multiplayerMode){
+        socket.emit('blockPlaced', { index: cell.dataset.index, blockType: selectedBlock });
+      }
+    }
+    
+    // Cancel waiting overlay for block placement
+    function cancelWaiting(){
+      waitingOverlay.style.display = 'none';
+    }
+    
+    // In single-player mode, a bot places a block.
+    function botPlaceBlock(){
+      let empties = Array.from(gameArea.children).filter(cell => !cell.innerHTML && !cell.style.backgroundColor);
+      if(empties.length === 0) return;
+      let cell = empties[Math.floor(Math.random() * empties.length)];
+      let b = purchasedBlocks[Math.floor(Math.random() * purchasedBlocks.length)];
+      drawBlock(cell, b);
+      botPlacedCount++;
+      filledSlots++;
+      checkGameOver();
+    }
+    
+    function startGame(b){
+      selectedBlock = b;
+      selectionScreen.classList.add('hidden');
+      gameScreen.classList.remove('hidden');
+      gameArea.innerHTML = '';
+      filledSlots = 0;
+      userPlacedCount = botPlacedCount = 0;
+      for(let i = 0; i < totalSlots; i++){
+        let cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.index = i;
+        cell.onclick = () => handleBlockPlacement(cell);
+        gameArea.appendChild(cell);
+      }
+      if(!multiplayerMode){
+        botInterval = setInterval(botPlaceBlock, currentBotSpeed);
+      }
+    }
+    
+    function checkGameOver(){
+      if(filledSlots >= totalSlots){
+        if(!multiplayerMode)
+          clearInterval(botInterval);
+        showResultScreen();
+      }
+    }
+    
+    function showResultScreen(){
+      resultScreen.classList.remove('hidden');
+      gameScreen.classList.add('hidden');
+      if(botPlacedCount > userPlacedCount){
+        let pen = (botPlacedCount - userPlacedCount) * 10;
+        moneyBeforePenalty = money + pen;
+        money = Math.max(money - pen, 0);
+        resultMessage.innerText = 'You lost due to penalty!';
+      } else {
+        resultMessage.innerText = 'You win!';
+      }
+      updateDisplays();
+    }
+    
+    function retryGame(){
+      resultScreen.classList.add('hidden');
+      if(multiplayerMode){
+        openMultiplayerBlockSelection();
+      } else {
+        openBlockSelection();
+      }
+    }
+    
+    function exitGame(){
+      resultScreen.classList.add('hidden');
+      mainContent.classList.remove('hidden');
+      gameScreen.classList.add('hidden');
+    }
+    
+    function restartGameWithNoLoss(){
+      if(gcube < 10){
+        alert("Not enough GCube to restart!");
+        return;
+      }
+      gcube -= 10;
+      money = moneyBeforePenalty;
+      updateDisplays();
+      resultScreen.classList.add('hidden');
+      if(multiplayerMode){
+        openMultiplayerBlockSelection();
+      } else {
+        openBlockSelection();
+      }
+    }
+    
+    document.getElementById('shopButton').onclick = () => {
+      openShopMenu();
+      mainContent.classList.add('hidden');
+    };
+    
+    function openShopMenu(){
+      shopMenu.classList.remove('hidden');
+      shopMenu.innerHTML = '<h2>Shop</h2>';
+      shopItems.forEach(item => {
+        let s = document.createElement('div');
+        s.className = 'shop-item';
+        s.style.backgroundColor = getBlockColor(item.color);
+        let btn = document.createElement('button');
+        btn.className = 'green-button';
+        btn.innerText = `Buy ($${item.price})`;
+        btn.onclick = () => confirmPurchase(`${item.color} block`, item.price, 'assets/money1.png', () => buyBlock(item.color, item.price));
+        s.appendChild(btn);
+        shopMenu.appendChild(s);
+      });
+      let closeBtn = document.createElement('button');
+      closeBtn.className = 'green-button';
+      closeBtn.innerText = 'Close';
+      closeBtn.onclick = closeShop;
+      shopMenu.appendChild(closeBtn);
+    }
+    
+    function buyBlock(c, price){
+      if(gcube < price && money < price){
+        alert('Not enough currency!');
+        return;
+      }
+      if(money >= price){
+        money -= price;
+      } else {
+        gcube -= price;
+      }
+      updateDisplays();
+      purchasedBlocks.push(c);
+      showObtainedMessage(`${c} block`);
+      closeShop();
+      mainContent.classList.remove('hidden');
+    }
+    
+    function closeShop(){
+      shopMenu.classList.add('hidden');
+      mainContent.classList.remove('hidden');
+    }
+    
+    document.getElementById('giftCodeButton').onclick = () => {
+      openGiftCodeMenu();
+      mainContent.classList.add('hidden');
+    };
+    
+    function openGiftCodeMenu(){
+      giftCodeMenu.classList.remove('hidden');
+    }
+    
+    function redeemGiftCode(){
+      let code = document.getElementById('giftCodeInput').value;
+      if(code === 'heronick'){
+        money += 500;
+        updateDisplays();
+        alert('Gift code redeemed!');
+      } else {
+        alert('Invalid code!');
+      }
+    }
+    
+    function closeGiftCodeMenu(){
+      giftCodeMenu.classList.add('hidden');
+      mainContent.classList.remove('hidden');
+    }
+    
+    document.getElementById('vipShopButton').onclick = () => {
+      openVipShop();
+      mainContent.classList.add('hidden');
+    };
+    
+    function openVipShop(){
+      vipShopMenu.classList.remove('hidden');
+    }
+    
+    function closeVipShop(){
+      vipShopMenu.classList.add('hidden');
+      mainContent.classList.remove('hidden');
+    }
+    
+    function showVipTab(tab){
+      document.getElementById('vipMoneyTabButton').classList.remove('active');
+      document.getElementById('vipPremiumTabButton').classList.remove('active');
+      document.getElementById('vipMoneyPackTabButton').classList.remove('active');
+      document.getElementById('vipMoneyTab').style.display = 'none';
+      document.getElementById('vipPremiumTab').style.display = 'none';
+      document.getElementById('vipMoneyPackTab').style.display = 'none';
+      if(tab === 'money'){
+        document.getElementById('vipMoneyTabButton').classList.add('active');
+        document.getElementById('vipMoneyTab').style.display = 'block';
+      } else if(tab === 'premium'){
+        document.getElementById('vipPremiumTabButton').classList.add('active');
+        document.getElementById('vipPremiumTab').style.display = 'block';
+      } else if(tab === 'pack'){
+        document.getElementById('vipMoneyPackTabButton').classList.add('active');
+        document.getElementById('vipMoneyPackTab').style.display = 'block';
+      }
+    }
+    
+    function openInputAndAdd(type){
+      let n = prompt(`Enter amount of ${type} to add:`);
+      n = parseInt(n);
+      if(!isNaN(n)){
+        if(type === 'money'){
+          money += n;
+        } else {
+          gcube += n;
+        }
+        updateDisplays();
+      }
+    }
+    
+    function gmAddMoney(){
+      let n = parseInt(document.getElementById('gmAddMoneyInput').value);
+      if(!isNaN(n)){
+        money += n;
+        updateDisplays();
+      }
+    }
+    
+    function gmAddGCube(){
+      let n = parseInt(document.getElementById('gmAddGCubeInput').value);
+      if(!isNaN(n)){
+        gcube += n;
+        updateDisplays();
+      }
+    }
+    
+    function gmUpdateBotSpeed(){
+      let n = parseInt(document.getElementById('gmBotSpeedInput').value);
+      if(!isNaN(n) && n > 0){
+        currentBotSpeed = n;
+        if(!gameScreen.classList.contains('hidden')){
+          clearInterval(botInterval);
+          botInterval = setInterval(botPlaceBlock, currentBotSpeed);
+        }
+      }
+    }
+    
+    function endGame(){
+      clearInterval(botInterval);
+      showResultScreen();
+    }
+    
+    function buyMoneyUpgrade(){
+      if(moneyUpgradePurchased){
+        alert("Already purchased!");
+        return;
+      }
+      if(gcube < 499){
+        alert('Not enough GCube!');
+        return;
+      }
+      gcube -= 499;
+      updateDisplays();
+      moneyMultiplier = 2;
+      moneyUpgradePurchased = true;
+      document.getElementById('buyMoneyUpgradeBtn').innerText = "Purchased";
+      showObtainedMessage("2x Money");
+    }
+    
+    function buyPremiumBlockOnly(){
+      if(premiumBlockUnlocked){
+        alert("Already purchased!");
+        return;
+      }
+      if(gcube < 999){
+        alert('Not enough GCube!');
+        return;
+      }
+      gcube -= 999;
+      updateDisplays();
+      premiumBlockUnlocked = true;
+      if(!purchasedBlocks.includes('hyper')) purchasedBlocks.push('hyper');
+      showObtainedMessage("Hyper Block");
+    }
+    
+    function buySuperBlock(){
+      if(superBlockUnlocked){
+        alert("Already purchased!");
+        return;
+      }
+      if(gcube < 1499){
+        alert('Not enough GCube!');
+        return;
+      }
+      gcube -= 1499;
+      updateDisplays();
+      superBlockUnlocked = true;
+      if(!purchasedBlocks.includes('super')) purchasedBlocks.push('super');
+      showObtainedMessage("Super Block");
+    }
+    
+    function buyHotBlock(){
+      if(hotBlockPurchased){
+        alert("Already purchased!");
+        return;
+      }
+      if(gcube < 999){
+        alert('Not enough GCube!');
+        return;
+      }
+      gcube -= 999;
+      updateDisplays();
+      hotBlockPurchased = true;
+      if(!purchasedBlocks.includes('hot')) purchasedBlocks.push('hot');
+      showObtainedMessage("404 Not Found");
+    }
+    
+    function buyHeroBlock(){
+      if(heroBlockPurchased){
+        alert("Already purchased!");
+        return;
+      }
+      if(gcube < 499){
+        alert('Not enough GCube!');
+        return;
+      }
+      gcube -= 499;
+      updateDisplays();
+      heroBlockPurchased = true;
+      if(!purchasedBlocks.includes('hero')) purchasedBlocks.push('hero');
+      showObtainedMessage("Hero Block");
+    }
+    
+    function buyMoneyPack(a, c, l){
+      let btnId;
+      if(a === 5000){
+        if(moneyPack1Purchased){
+          alert("Already purchased!");
+          return;
+        }
+        btnId = "moneyPack1Btn";
+        moneyPack1Purchased = true;
+      } else if(a === 50000){
+        if(moneyPack2Purchased){
+          alert("Already purchased!");
+          return;
+        }
+        btnId = "moneyPack2Btn";
+        moneyPack2Purchased = true;
+      } else if(a === 100000){
+        if(moneyPack3Purchased){
+          alert("Already purchased!");
+          return;
+        }
+        btnId = "moneyPack3Btn";
+        moneyPack3Purchased = true;
+      }
+      if(gcube < c){
+        alert('Not enough GCube!');
+        return;
+      }
+      gcube -= c;
+      money += a;
+      updateDisplays();
+      document.getElementById(btnId).innerText = "Purchased";
+      showObtainedMessage(l);
+    }
+    
+    function getBlockColor(b){
+      switch(b){
+        case 'grass': return '#8DB600';
+        case 'water': return '#1E90FF';
+        case 'stone': return '#A9A9A9';
+        case 'dirt': return '#8B4513';
+        case 'tnt': return '#FF0000';
+        default: return b;
+      }
+    }
+    
+    function populateGMBlockTab(){
+      const L = document.getElementById('gmBlockList');
+      L.innerHTML = "";
+      const arr = ["grass", "dirt", "stone", "water", "tnt", "red", "blue", "yellow", "purple", "hyper", "super", "hot", "hero"];
+      arr.forEach(b => {
+        let d = document.createElement('div');
+        d.className = 'gm-block-option';
+        d.style.backgroundImage = (b === 'hyper') ? "url('assets/block1.png')" : (b === 'super') ? "url('assets/block2.png')" : (b === 'hot') ? "url('assets/block3.png')" : (b === 'hero') ? "url('assets/hero.png')" : 'none';
+        if(d.style.backgroundImage === 'none') d.style.backgroundColor = getBlockColor(b);
+        d.title = b;
+        d.onclick = () => { if(!purchasedBlocks.includes(b)) purchasedBlocks.push(b); selectedBlock = b; };
+        L.appendChild(d);
+      });
+    }
+    
+    document.getElementById('gmToolButton').onclick = () => {
+      const m = document.getElementById('gmToolMenu');
+      if(m.style.display === "none" || m.style.display === ""){
+        openGMToolMenu();
+      } else {
+        closeGMToolMenu();
+      }
+    };
+    
+    function openGMToolMenu(){
+      document.getElementById('gmToolMenu').style.display = "block";
+      showGMToolTab('currency');
+      populateGMBlockTab();
+    }
+    
+    function closeGMToolMenu(){
+      document.getElementById('gmToolMenu').style.display = "none";
+    }
+    
+    function showGMToolTab(t){
+      document.getElementById('gmCurrencyTab').style.display = 'none';
+      document.getElementById('gmBlockTab').style.display = 'none';
+      document.getElementById('gmGameTab').style.display = 'none';
+      if(t === 'currency'){
+        document.getElementById('gmCurrencyTab').style.display = 'block';
+      } else if(t === 'block'){
+        document.getElementById('gmBlockTab').style.display = 'block';
+      } else if(t === 'game'){
+        document.getElementById('gmGameTab').style.display = 'block';
+      }
+    }
+    
+    function closeSettingsMenu(){
+      document.getElementById('settingsMenu').style.display = 'none';
+    }
+    
+    updateDisplays();
+  </script>
+</body>
+</html>
