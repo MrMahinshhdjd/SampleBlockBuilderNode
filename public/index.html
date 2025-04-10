@@ -642,16 +642,27 @@
     function selectMultiplayerBlock(b){
       selectedBlock = b;
       selectionScreen.classList.add('hidden');
-      // Set initial waiting status
+      // Set initial waiting status and show waiting overlay
       document.getElementById('waitingStatusText').innerText = "Waiting for player 1/2";
       waitingOverlay.style.display = 'flex';
       // Inform server that this player is ready with the selected block.
       socket.emit('playerReady', { block: b });
+      // For testing (or if no opponent joins), auto-start the game after 5 seconds.
+      setTimeout(() => {
+        if(!multiplayerGameStarted){
+          multiplayerGameStarted = true;
+          waitingOverlay.style.display = 'none';
+          startGame(selectedBlock);
+        }
+      }, 5000);
     }
 
-    // Cancel waiting overlay for block placement
+    // Cancel waiting overlay for block placement (exit multiplayer mode)
     function cancelWaiting(){
       waitingOverlay.style.display = 'none';
+      multiplayerMode = false;
+      selectionScreen.classList.add('hidden');
+      mainContent.classList.remove('hidden');
     }
 
     // In single-player mode, a bot places a block.
@@ -682,6 +693,25 @@
       }
       if(!multiplayerMode){
         botInterval = setInterval(botPlaceBlock, currentBotSpeed);
+      }
+    }
+
+    function handleBlockPlacement(cell){
+      if(cell.innerHTML || cell.style.backgroundColor) return;
+      // In multiplayer mode, if the game hasn't started, do nothing.
+      if(multiplayerMode && !multiplayerGameStarted){
+        waitingOverlay.style.display = 'flex';
+        return;
+      }
+      drawBlock(cell, selectedBlock);
+      userPlacedCount++;
+      let base = Math.floor(Math.random() * 2) + 3;
+      money += base * moneyMultiplier;
+      updateDisplays();
+      filledSlots++;
+      checkGameOver();
+      if(multiplayerMode){
+        socket.emit('blockPlaced', { index: cell.dataset.index, blockType: selectedBlock });
       }
     }
 
