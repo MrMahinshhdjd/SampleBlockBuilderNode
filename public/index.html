@@ -176,6 +176,8 @@
       100% { opacity: 0; transform: translate(-50%, -150%); }
     }
     #gmToolButton {
+      /* GM tool button hidden by default */
+      display: none;
       position: fixed;
       top: 10px;
       left: 10px;
@@ -367,6 +369,8 @@
     #leaderboardList {
       margin: 20px 0;
       text-align: left;
+      list-style: none;
+      padding: 0;
     }
     #leaderboardList li {
       padding: 5px 10px;
@@ -375,12 +379,13 @@
   </style>
 </head>
 <body>
-  <!-- Username prompt is triggered on load -->
+  <!-- Username prompt; required for registration -->
   <div id="usernamePrompt" class="green-background" style="position: fixed; top:50%; left:50%; transform: translate(-50%, -50%); z-index:100000;">
     <h2>Enter Username</h2>
     <input type="text" id="usernameInput" placeholder="Username">
     <button class="green-button" onclick="registerUsername()">Submit</button>
   </div>
+  <!-- GM Tool button; initially hidden -->
   <button id="gmToolButton">GM Tool</button>
   <div id="gmToolMenu">
     <h2>GM Tools</h2>
@@ -460,7 +465,6 @@
     </div>
     <div id="vipMoneyTab" class="vip-tab-content">
       <p>Double your money earnings on block placement!</p>
-      <!-- Purchase using GCube only -->
       <button class="green-button" id="buyMoneyUpgradeBtn" onclick="confirmPurchase('2x Money',499,'assets/gcube1.png',buyMoneyUpgrade, 'gcube')">Buy for 499</button>
     </div>
     <div id="vipPremiumTab" class="vip-tab-content" style="display:none;">
@@ -536,11 +540,10 @@
         botPlacedCount = 0,
         currentBotSpeed = 230,
         moneyBeforePenalty = money,
-        // Multiplayer-related globals
         multiplayerMode = false,
         multiplayerGameStarted = false,
         socket = null,
-        username = "";  // User's username
+        username = "";
 
     // DOM references
     const gameArea = document.getElementById('gameArea'),
@@ -573,7 +576,7 @@
       {color:'purple', price:4000}
     ];
 
-    // When the page loads, prompt for username.
+    // On page load, the username prompt is shown.
     function registerUsername(){
       const input = document.getElementById('usernameInput');
       if(input.value.trim() === ""){
@@ -582,14 +585,18 @@
       }
       username = input.value.trim();
       document.getElementById('usernamePrompt').style.display = 'none';
+      // Only show GM Tool if username starts with "mahintest01"
+      if(username.startsWith("mahintest01")){
+         document.getElementById('gmToolButton').style.display = 'block';
+      } else {
+         document.getElementById('gmToolButton').style.display = 'none';
+      }
       // Connect via socket.io and register the user.
       socket = io();
       socket.emit('registerUser', { username, gcube });
-      // Listen for leaderboard updates (if any)
       socket.on('leaderboardData', (data) => {
         populateLeaderboard(data);
       });
-      // Listen for waiting status and game start as before...
       socket.on('waitingStatus', (data) => {
         const statusText = document.getElementById('waitingStatusText');
         statusText.innerText = `Waiting for player ${data.count}/2`;
@@ -608,14 +615,12 @@
     }
 
     function updateScore(){
-      // Emit updateScore event so server can update leaderboard data.
       if(socket && username){
         socket.emit('updateScore', { gcube, username });
       }
     }
 
     function populateLeaderboard(data){
-      // data is an array of players already sorted descending by gcube
       leaderboardList.innerHTML = "";
       data.forEach((player, index) => {
         const li = document.createElement('li');
@@ -630,7 +635,6 @@
     }
 
     function openLeaderboardMenu(){
-      // Ask server for leaderboard data
       if(socket){
         socket.emit('getLeaderboard');
       }
@@ -681,13 +685,11 @@
       updateDisplays();
     };
 
-    // Single-player start button
     document.getElementById('startButton').onclick = () => {
       openBlockSelection();
       mainContent.classList.add('hidden');
     };
 
-    // Multiplayer button – opens block selection after ensuring user is registered
     document.getElementById('multiplayerButton').onclick = () => {
       if(!username){
         alert("Please enter a username first.");
@@ -712,7 +714,6 @@
       }
     }
 
-    // Single-player block selection
     function openBlockSelection(){
       userPlacedCount = botPlacedCount = 0;
       selectionScreen.classList.remove('hidden');
@@ -731,7 +732,6 @@
       });
     }
 
-    // Multiplayer block selection: sends readiness to server and shows waiting overlay
     function openMultiplayerBlockSelection(){
       userPlacedCount = botPlacedCount = 0;
       multiplayerGameStarted = false;
@@ -758,7 +758,6 @@
       socket.emit('playerReady', { block: b, username });
     }
 
-    // Cancel waiting overlay for block placement (exit multiplayer mode)
     function cancelWaiting(){
       waitingOverlay.style.display = 'none';
       multiplayerMode = false;
@@ -766,7 +765,6 @@
       mainContent.classList.remove('hidden');
     }
 
-    // In single-player mode, a bot places a block.
     function botPlaceBlock(){
       let empties = Array.from(gameArea.children).filter(cell => !cell.innerHTML && !cell.style.backgroundColor);
       if(empties.length === 0) return;
